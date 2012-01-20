@@ -18,6 +18,8 @@
 (defvar mural-server-path "mural_server"
   "Path to the mural_server executable")
 
+(defvar mural-server-echo nil
+  "echo server responses to *muralserver* buffer")
 (defvar mural-server-process nil)
 (defvar mural-server-output "")
 (defvar ido-dynamic-match-fn nil)
@@ -38,8 +40,15 @@
     (set-process-filter
      proc
      (lambda (process output)
-       (setq mural-server-output (concat mural-server-output output))))
-  proc))
+       (with-current-buffer (process-buffer process)
+         (save-excursion
+           (if mural-server-echo
+               (progn
+                 (goto-char (process-mark process))
+                 (insert output)
+                 (set-marker (process-mark process) (point))))
+           (setq mural-server-output (concat mural-server-output output))))))
+     proc))
 
 (defun mural-query (query)
   (if (equal "" query)
@@ -49,17 +58,15 @@
       (process-send-string (process-name (mural-get-server))
                            (concat query "\n"))
 
-      ;; Wait up to 2/10 of a second
-      (loop for i from 1 to 20
+      ;; Wait up to 1/2 second
+      (loop for i from 1 to 10
             until (mural-response-complete mural-server-output)
-            do (accept-process-output mural-server-process .01))
-      (if (not (mural-response-complete mural-server-output))
-          (progn
-            (kill-process (mural-get-server))
-            (setq mural-server-process nil
-                  mural-server-output "")
-            (error "failed to get response from server")))
-      (mural-parse-response mural-server-output))))
+            do (accept-process-output mural-server-process .05))
+      (if (mural-response-complete mural-server-output)
+          (mural-parse-response mural-server-output)
+        (progn
+          (message "mural-server timeout")
+          '())))))
 
 (defun mural-parse-response (results)
   (mapcar (lambda (x) (substring x (length "MATCH ")))
