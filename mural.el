@@ -86,9 +86,17 @@
   (interactive)
   (find-tag (mural-read-tag)))
 
+
+(defvar ido-dynamic-last-query nil)
+
 (defadvice ido-set-matches (before ido-dynamic-match ())
-  (if ido-dynamic-match-fn
-      (setq ido-cur-list (funcall ido-dynamic-match-fn ido-text))))
+  (if (and ido-dynamic-match-fn
+           ;; only reset ido-cur-list if the query has changed.  This
+           ;; prevents resetting the results during rotation (C-s)
+           (not (equal ido-dynamic-last-query ido-text)))
+      (progn
+        (setq ido-dynamic-last-query ido-text)
+        (setq ido-cur-list (funcall ido-dynamic-match-fn ido-text)))))
 
 (ad-activate 'ido-set-matches)
 
