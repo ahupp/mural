@@ -66,16 +66,15 @@
           (mural-parse-response mural-server-output)
         (progn
           (message "mural-server timeout")
-          '())))))
+          '())
+        ))))
 
 (defun mural-parse-response (results)
   (mapcar (lambda (x) (substring x (length "MATCH ")))
           (delete "DONE" (split-string results "\n" t))))
 
-
 (defun mural-response-complete (result)
-  (and (> (length result) 3)
-       (equal "DONE\n" (substring result -5))))
+  (integerp (string-match "^DONE" result)))
 
 (defun mural-read-tag ()
   (setq ido-dynamic-match-fn 'mural-query)

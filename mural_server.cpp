@@ -5,6 +5,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "timer.h"
+
 using namespace std;
 
 /*
@@ -112,16 +114,23 @@ int main(int argc, char** argv) {
     string query;
     getline(cin, query);
     if (query.length()) {
+      Timer t;
       vector<fuzzy_match> matches = find_fuzzy_matches(tags, query);
-      sort(matches.begin(), matches.end(), is_better_match);
 
       const size_t limit = 32;
+      if (matches.size() > limit) {
+        partial_sort(matches.begin(), matches.begin()+limit, matches.end(),
+                     is_better_match);
+      }
 
       for (int i = 0; i < min(limit, matches.size()); ++i) {
         cout << "MATCH " << matches[i].first << endl;
       }
+      cout << "DONE " << t.elapsedMS() << "ms " <<
+        "#match: " << matches.size() <<  endl;
+    } else {
+      cout << "DONE" << endl;
     }
-    cout << "DONE" << endl;
   }
   return 0;
 }
