@@ -30,6 +30,15 @@ bool is_fuzzy_match(const string& symbol, const string& query,
   // query is a substring of symbol.  Larger values of inter_count
   // will generally be worse matches than smaller values.
   *inter_count = 0;
+
+  // Searches that don't explicitly look like a method ("::") will
+  // never include methods, and vice-versa.  This avoids polluting the
+  // results with lots of results from the same class.
+  if ((symbol.find("::") == string::npos) !=
+      (query.find("::") == string::npos)) {
+    return false;
+  }
+
   while (qi < query.length() && si < symbol.length()) {
     if (query[qi] == symbol[si]) {
       if (lastmatch != -1) {
