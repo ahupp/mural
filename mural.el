@@ -11,7 +11,8 @@
 ;;
 ;; If it is not already set make sure tags-file-name points at your tags file.
 ;;
-
+;; To debug launch:
+;; (call-process mural-server-path nil t nil tags-file-name)
 
 (require 'ido)
 

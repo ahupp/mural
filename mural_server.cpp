@@ -15,7 +15,7 @@ struct TagInfo {
   int row;
 
   TagInfo(const string& _symbol, const string& _file, int _row)
-  : symbol(_symbol), row(_row), file(_file) {}
+      : symbol(_symbol), file(_file), row(_row) {}
 };
 
 
@@ -118,7 +118,7 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
                                    const size_t limit) {
   vector<FuzzyMatch> matches;
 
-  for (int i = 0; i < tags.size(); ++i) {
+  for (size_t i = 0; i < tags.size(); ++i) {
     int inter_count;
     const TagInfo& tag = tags[i];
     if (is_fuzzy_match(tag.symbol, query, &inter_count)) {
@@ -132,7 +132,7 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
   }
 
   vector<TagInfo> result;
-  for (int i = 0; i < min(limit, matches.size()); ++i) {
+  for (size_t i = 0; i < min(limit, matches.size()); ++i) {
     result.push_back(*(matches[i].first));
   }
 
@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
       Timer t;
       vector<TagInfo> matches = find_fuzzy_matches(tags, query, 32);
 
-      for (int i = 0; i < matches.size(); ++i) {
+      for (size_t i = 0; i < matches.size(); ++i) {
         const TagInfo& match = matches[i];
         cout << "MATCH " << match.symbol << endl;
       }
