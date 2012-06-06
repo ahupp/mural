@@ -9,18 +9,24 @@
 
 using namespace std;
 
+bool is_method_tag(const string& tag) {
+  return tag.find("::") != string::npos;
+}
+
 struct TagInfo {
   string symbol;
   string file;
   int row;
+  bool is_method;
 
   TagInfo(const string& _symbol, const string& _file, int _row)
-      : symbol(_symbol), file(_file), row(_row) {}
+   : symbol(_symbol), file(_file), row(_row), is_method(is_method_tag(_symbol))
+    {}
 };
 
 
 bool is_fuzzy_match(const string& symbol, const string& query,
-                    int* inter_count) {
+                    int* inter_count_ret) {
 
   int qi = 0;
   int si = 0;
@@ -29,26 +35,19 @@ bool is_fuzzy_match(const string& symbol, const string& query,
   // The number of characters between fuzzy matches.  This is 0 if
   // query is a substring of symbol.  Larger values of inter_count
   // will generally be worse matches than smaller values.
-  *inter_count = 0;
-
-  // Searches that don't explicitly look like a method ("::") will
-  // never include methods, and vice-versa.  This avoids polluting the
-  // results with lots of results from the same class.
-  if ((symbol.find("::") == string::npos) !=
-      (query.find("::") == string::npos)) {
-    return false;
-  }
+  int inter_count = 0;
 
   while (qi < query.length() && si < symbol.length()) {
     if (query[qi] == symbol[si]) {
       if (lastmatch != -1) {
-        *inter_count += si - lastmatch - 1;
+        inter_count += si - lastmatch - 1;
       }
       lastmatch = si;
       ++qi;
     }
     ++si;
   }
+  *inter_count_ret = inter_count;
   return qi == query.length();
 }
 
@@ -118,10 +117,23 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
                                    const size_t limit) {
   vector<FuzzyMatch> matches;
 
+  // Searches that don't explicitly look like a method ("::") will
+  // never include methods, and vice-versa.
+  bool methods_only = is_method_tag(query);
+
   for (size_t i = 0; i < tags.size(); ++i) {
     int inter_count;
     const TagInfo& tag = tags[i];
+
+    if (tag.is_method != methods_only) {
+      // could split the tags into method and non-method sets and only
+      // search one, but right now it's fast enough.
+      continue;
+    }
     if (is_fuzzy_match(tag.symbol, query, &inter_count)) {
+      // Passing &tag here is an important perf optimization to avoid
+      // excessive copying when there are many possible results (like
+      // "A")
       matches.push_back(make_pair(&tag, inter_count));
     }
   }
