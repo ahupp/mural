@@ -85,15 +85,15 @@ vector<TagInfo> read_tags_file(const char* tagfile) {
       if (tag_end == string::npos) {
         continue;
       }
-      size_t col_end = line.find(',', tag_end);
-      if (col_end == string::npos) {
+      size_t row_end = line.find(',', tag_end);
+      if (row_end == string::npos) {
         continue;
       }
 
       string symbol = line.substr(tag_start + 1, tag_end-tag_start-1);
-      string column = line.substr(tag_end+1, col_end);
+      string row = line.substr(tag_end+1, row_end);
 
-      tags.push_back(TagInfo(symbol, current_filename, atoi(column.c_str())));
+      tags.push_back(TagInfo(symbol, current_filename, atoi(row.c_str())));
     }
   }
   return tags;
@@ -170,7 +170,10 @@ int main(int argc, char** argv) {
 
       for (size_t i = 0; i < matches.size(); ++i) {
         const TagInfo& match = matches[i];
-        cout << "MATCH " << match.symbol << endl;
+        cout << "MATCH "
+             << match.symbol << " "
+             << match.file << " "
+             << match.row << endl;;
       }
       cout << "DONE " << t.elapsedMS() << "ms " <<
         "#match: " << matches.size() <<  endl;

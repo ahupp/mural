@@ -24,6 +24,7 @@
 (defvar mural-server-process nil)
 (defvar mural-server-output "")
 (defvar ido-dynamic-match-fn nil)
+(defvar mural-last-query-result nil)
 
 (defun mural-get-server ()
   (if (or (not mural-server-process)
@@ -70,23 +71,58 @@
           '())
         ))))
 
+(defun mural-query-save-tag (query)
+  (let ((qresult (mural-query query)))
+    (setq mural-last-query-result qresult)
+    (mapcar (lambda (x) (elt x 0)) qresult)))
+
+;;(mural-parse-response "MATCH foo bar 1\nMATCH hi bye 2\nDONE hi hi")
+;; returns '((tag file row) ...)
 (defun mural-parse-response (results)
-  (mapcar (lambda (x) (substring x (length "MATCH ")))
-          (delete "DONE" (split-string results "\n" t))))
+  (delq nil
+        (mapcar
+         (lambda (x)
+           ;; spaces in the filename?  tough.
+           (let ((row (split-string x)))
+             (if (equal (elt row 0) "MATCH")
+                 ;; MATCH tag filename row
+                 (list (elt row 1) (elt row 2) (string-to-number (elt row 3)))
+               ;; hopefully DONE
+               nil)))
+         (split-string results "\n"))))
 
 (defun mural-response-complete (result)
   (integerp (string-match "^DONE" result)))
 
 (defun mural-read-tag ()
-  (setq ido-dynamic-match-fn 'mural-query)
+  (setq ido-dynamic-match-fn 'mural-query-save-tag)
   (unwind-protect ;; i have no idea what's going on here
       (ido-completing-read "tag: " '("nope"))
     (setq ido-dynamic-match-fn nil)))
 
+(defun mural-tag-filename (tag)
+  (elt tag 1))
+(defun mural-tag-row (tag)
+  (elt tag 2))
+
+
 (defun mural-open-dwim ()
   (interactive)
-  (find-tag (mural-read-tag)))
+  (let* ((tag (mural-read-tag))
+        (taginfo (assoc tag mural-last-query-result)))
+    (progn
+      (find-file (mural-abspath-for-tag taginfo))
+      (goto-line (mural-tag-row taginfo))
+      (setq mural-last-query-result nil)
+      )))
 
+(defun mural-abspath-for-tag (taginfo)
+  (expand-file-name
+   (mural-tag-filename taginfo)
+   ;; need to make this conditional on the tag file to support multiple repos
+   (file-name-directory (directory-file-name tags-file-name))))
+
+;; (mural-abspath-for-tag '("hi" "flib/core/preparable/Preparer.php" 1))
 
 (defvar ido-dynamic-last-query nil)
 
