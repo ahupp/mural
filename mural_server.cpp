@@ -28,8 +28,8 @@ struct TagInfo {
 bool is_fuzzy_match(const string& symbol, const string& query,
                     int* inter_count_ret) {
 
-  int qi = 0;
-  int si = 0;
+  size_t qi = 0;
+  size_t si = 0;
   int lastmatch = -1;
 
   // The number of characters between fuzzy matches.  This is 0 if
@@ -114,7 +114,7 @@ bool is_better_match(const FuzzyMatch& lhs, const FuzzyMatch& rhs) {
 
 vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
                                    const string& query,
-                                   const size_t limit) {
+                                   const size_t max_items) {
   vector<FuzzyMatch> matches;
 
   // Searches that don't explicitly look like a method ("::") will
@@ -138,13 +138,12 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
     }
   }
 
-  if (matches.size() > limit) {
-    partial_sort(matches.begin(), matches.begin()+limit, matches.end(),
-                 is_better_match);
-  }
+  size_t limit = min(max_items, matches.size());
+  partial_sort(matches.begin(), matches.begin()+limit, matches.end(),
+               is_better_match);
 
   vector<TagInfo> result;
-  for (size_t i = 0; i < min(limit, matches.size()); ++i) {
+  for (size_t i = 0; i < limit; ++i) {
     result.push_back(*(matches[i].first));
   }
 
