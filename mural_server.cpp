@@ -4,8 +4,11 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <sys/epoll.h>
+#include <assert.h>
 
 #include "timer.h"
+#include "enforce.h"
 
 using namespace std;
 
@@ -150,6 +153,36 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
   return result;
 }
 
+void handle_one_query(const vector<TagInfo>& tags) {
+
+  string query;
+  getline(cin, query);
+  if (!query.length()) {
+    cout << "DONE" << endl;
+    return;
+  }
+
+  Timer t;
+  vector<TagInfo> matches = find_fuzzy_matches(tags, query, 32);
+
+  for (size_t i = 0; i < matches.size(); ++i) {
+    const TagInfo& match = matches[i];
+    cout << "MATCH "
+         << match.symbol << " "
+         << match.file << " "
+         << match.row << endl;;
+  }
+  cout << "DONE " << t.elapsedMS() << "ms "
+       << "#match: " << matches.size() << endl;
+}
+
+void mural_epoll_add(int epoll_fd, int fd) {
+  struct epoll_event evt;
+  evt.data.fd = fd;
+  evt.events = EPOLLIN;
+  enforce(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, 0, &evt), "mural_add_epoll");
+}
+
 int main(int argc, char** argv) {
 
   if (argc != 2) {
@@ -159,25 +192,20 @@ int main(int argc, char** argv) {
 
   vector<TagInfo> tags = read_tags_file(argv[1]);
 
-  while (!cin.eof()) {
-    string query;
-    getline(cin, query);
+  int efd = enforce(epoll_create(2), "epoll_create");
+  mural_epoll_add(efd, 0);
 
-    if (query.length()) {
-      Timer t;
-      vector<TagInfo> matches = find_fuzzy_matches(tags, query, 32);
+  const int MAXEVENTS = 64;
+  struct epoll_event* events = new struct epoll_event[MAXEVENTS];
 
-      for (size_t i = 0; i < matches.size(); ++i) {
-        const TagInfo& match = matches[i];
-        cout << "MATCH "
-             << match.symbol << " "
-             << match.file << " "
-             << match.row << endl;;
-      }
-      cout << "DONE " << t.elapsedMS() << "ms " <<
-        "#match: " << matches.size() <<  endl;
-    } else {
-      cout << "DONE" << endl;
+  while (1) {
+    int n = epoll_wait(efd, events, MAXEVENTS, -1);
+    for (int i = 0; i < n; ++i) {
+      assert(0 == events[i].data.fd);
+      handle_one_query(tags);
+    }
+    if (cin.eof()) {
+      break;
     }
   }
   return 0;
