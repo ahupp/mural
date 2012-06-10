@@ -3,8 +3,11 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <map>
 #include <algorithm>
+#include <sstream>
 #include <sys/epoll.h>
+#include <sys/inotify.h>
 #include <assert.h>
 
 #include "timer.h"
@@ -55,11 +58,11 @@ bool is_fuzzy_match(const string& symbol, const string& query,
 }
 
 
-vector<TagInfo> read_tags_file(const char* tagfile) {
+void read_tags_file(const string& tagfile, vector<TagInfo>& tags) {
 
-  ifstream tag_stream(tagfile);
+  tags.clear();
 
-  vector<TagInfo> tags;
+  ifstream tag_stream(tagfile.c_str());
 
   bool expecting_filename = false;
   string current_filename;
@@ -99,7 +102,6 @@ vector<TagInfo> read_tags_file(const char* tagfile) {
       tags.push_back(TagInfo(symbol, current_filename, atoi(row.c_str())));
     }
   }
-  return tags;
 }
 
 typedef pair<const TagInfo*, int> FuzzyMatch;
@@ -176,11 +178,38 @@ void handle_one_query(const vector<TagInfo>& tags) {
        << "#match: " << matches.size() << endl;
 }
 
-void mural_epoll_add(int epoll_fd, int fd) {
+void mural_epoll_add(const int epoll_fd, const int fd) {
   struct epoll_event evt;
   evt.data.fd = fd;
   evt.events = EPOLLIN;
-  enforce(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, 0, &evt), "mural_add_epoll");
+  enforce(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &evt), "mural_add_epoll");
+}
+
+void read_inotify_events(const int inotify_fd,
+                         const string& tag_file,
+                         vector<TagInfo>& tags) {
+
+  const int EVENT_SIZE = sizeof(struct inotify_event);
+  const int BUF_SIZE = 1024 * (EVENT_SIZE + 16);
+  char buf[BUF_SIZE];
+
+  // The examples I've read check for EINTR, but its not clear when
+  // that would happen, or what I should do about it.  So just fail
+  // hard.  They also include a check for len == 0, same thing.
+  int len = enforce(read(inotify_fd, buf, BUF_SIZE), "read");
+
+  int i = 0;
+  while (i < len) {
+
+    struct inotify_event *event = (struct inotify_event*) &buf[i];
+
+    if (event->mask & IN_CLOSE_WRITE) {
+      // it can only be one thing...
+      read_tags_file(tag_file, tags);
+    }
+
+    i += EVENT_SIZE + event->len;
+  }
 }
 
 int main(int argc, char** argv) {
@@ -190,10 +219,20 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  vector<TagInfo> tags = read_tags_file(argv[1]);
+  const string tags_file(argv[1]);
 
+  vector<TagInfo> tags;
+  read_tags_file(tags_file, tags);
+
+  int inotify_fd = enforce(inotify_init(), "inotify_init");
   int efd = enforce(epoll_create(2), "epoll_create");
+
   mural_epoll_add(efd, 0);
+  mural_epoll_add(efd, inotify_fd);
+
+  enforce(
+    inotify_add_watch(inotify_fd, tags_file.c_str(), IN_CLOSE_WRITE),
+    "inotify_add_watch");
 
   const int MAXEVENTS = 64;
   struct epoll_event* events = new struct epoll_event[MAXEVENTS];
@@ -201,8 +240,14 @@ int main(int argc, char** argv) {
   while (1) {
     int n = epoll_wait(efd, events, MAXEVENTS, -1);
     for (int i = 0; i < n; ++i) {
-      assert(0 == events[i].data.fd);
-      handle_one_query(tags);
+      int active_fd = events[i].data.fd;
+      if (active_fd == 0) {
+        handle_one_query(tags);
+      } else if (active_fd == inotify_fd) {
+        read_inotify_events(inotify_fd, tags_file, tags);
+      } else {
+        assert(false);
+      }
     }
     if (cin.eof()) {
       break;
