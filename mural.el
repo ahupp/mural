@@ -83,7 +83,7 @@
         (mapcar
          (lambda (x)
            ;; spaces in the filename?  tough.
-           (let ((row (split-string x)))
+           (let ((row (split-string x "\t")))
              (if (equal (elt row 0) "MATCH")
                  ;; MATCH tag filename row
                  (list (elt row 1) (elt row 2) (string-to-number (elt row 3)))

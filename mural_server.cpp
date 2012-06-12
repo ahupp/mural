@@ -169,9 +169,9 @@ void handle_one_query(const vector<TagInfo>& tags) {
 
   for (size_t i = 0; i < matches.size(); ++i) {
     const TagInfo& match = matches[i];
-    cout << "MATCH "
-         << match.symbol << " "
-         << match.file << " "
+    cout << "MATCH\t"
+         << match.symbol << "\t"
+         << match.file << "\t"
          << match.row << endl;;
   }
   cout << "DONE " << t.elapsedMS() << "ms "
