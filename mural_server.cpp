@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <algorithm>
 #include <sstream>
 #include <sys/epoll.h>
@@ -58,7 +59,64 @@ bool is_fuzzy_match(const string& symbol, const string& query,
 }
 
 
-void read_tags_file(const string& tagfile, vector<TagInfo>& tags) {
+vector<string> split(const string& line, char delim) {
+
+  vector<string> result;
+
+  size_t i = 0;
+  while (1) {
+
+    size_t next = line.find(delim, i);
+    if (next == string::npos) {
+      break;
+    }
+
+    result.push_back(line.substr(i, next - i));
+
+    i = next + 1;
+  }
+  result.push_back(line.substr(i, line.length() - i));
+
+  return result;
+}
+
+void read_ctags_file(const string& tagfile, vector<TagInfo>& tags) {
+
+  tags.clear();
+
+  ifstream tag_stream(tagfile.c_str());
+
+  set<string> seen_files;
+
+  while (!tag_stream.eof()) {
+    string line;
+    getline(tag_stream, line);
+
+    if (line[0] == '!') {
+      continue;
+    }
+
+    vector<string> splat = split(line, '\t');
+    if (splat.size() != 4) {
+      continue;
+    }
+
+    string row = splat[2];
+    if (row.length() > 2 && row.substr(row.length()-2, row.length()) == ";\"") {
+      row = row.substr(0, row.length() - 2);
+    }
+
+    string filename = splat[1];
+    if (seen_files.find(filename) == seen_files.end()) {
+      seen_files.insert(filename);
+      tags.push_back(TagInfo(filename, filename, 0));
+    }
+
+    tags.push_back(TagInfo(splat[0], filename, atoi(row.c_str())));
+  }
+}
+
+void read_etags_file(const string& tagfile, vector<TagInfo>& tags) {
 
   tags.clear();
 
@@ -183,6 +241,16 @@ void mural_epoll_add(const int epoll_fd, const int fd) {
   evt.data.fd = fd;
   evt.events = EPOLLIN;
   enforce(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &evt), "mural_add_epoll");
+}
+
+void read_tags_file(const string& tags_file, vector<TagInfo>& tags) {
+
+  if (0 != access(tags_file.c_str(), R_OK)) {
+    cerr << "error: " << tags_file << " not readable" << endl;
+    exit(1);
+  }
+
+  read_etags_file(tags_file, tags);
 }
 
 void read_inotify_events(const int inotify_fd,
