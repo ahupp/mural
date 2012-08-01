@@ -45,12 +45,15 @@
   "echo server responses to *muralserver* buffer")
 
 (defvar ido-dynamic-match-fn nil)
-(defvar mural-tagfile-to-process '())
+(defvar mural-tagfile-to-process '()
+  "alist from tagfile name to a mural_server process that handles this tagfile")
 
 (defun mural-add-tagfile (tagfile)
+  "Register tagfile and make it available for queries"
   (mural-get-server (expand-file-name tagfile)))
 
 (defun mural-add-tag-process-entry (tagfile process)
+  "Add or replace the process associated with tagfile"
   (setq mural-tagfile-to-process
         (cons
          (cons tagfile process)
@@ -59,6 +62,7 @@
                  mural-tagfile-to-process))))
 
 (defun mural-get-server (tagfile)
+  "Return the process for the given tagfile, if necessary creating/restarting it"
   (let ((proc (cdr (assoc tagfile mural-tagfile-to-process))))
     (if (or (not proc)
             (not (eq (process-status proc) 'run)))
@@ -68,6 +72,7 @@
       proc)))
 
 (defun mural-start-server (tagfile)
+  "fork a new mural_server process with this tagfile, returning the process"
   (if (not tagfile)
       (error "tagfile not provided"))
   (message "Starting mural server")
@@ -98,16 +103,23 @@
         rst))))
 
 (defun mural-tagfile-for-filename (filename)
+  "Given a source file, return the name of the associated
+tagfile.  This matches based on sharing the same parent
+directory, so /home/bob/project/foo.c will match the tag file in
+/home/bobo/project/TAGS.  If no match is found, return nil"
   (let ((resolved-fname (file-truename filename)))
     (car (filter
           (lambda (tagfile)
-            ;; file-truename resolves symlinks so we make sure to compare the same thing
+            ;; file-truename resolves symlinks so we make sure to
+            ;; compare the same thing
             (eq 0 (string-match
                    (file-truename (file-name-directory tagfile))
                    resolved-fname)))
           (mapcar 'car mural-tagfile-to-process)))))
 
 (defun mural-query (query tagfile)
+  "Run a fuzzy QUERY against TAGFILE and return the results as
+specified in mural-parse-response"
   (if (equal "" query)
       '()
     (let ((proc (mural-get-server tagfile))
@@ -125,17 +137,25 @@
       )))
 
 (defun mural-query-save-tag (query)
+  "Run by ido-mode to refresh results on keypress.  Runs
+QUERY (the current contents of the minibuffer) against
+mural-current-tagfile, which was setup on entry to
+ido-completing-read"
   (let ((qresult (mural-query query mural-current-tagfile)))
     (setq mural-last-query-result qresult)
     (mapcar 'mural-tag-tagname qresult)))
 
-;;(mural-parse-response "MATCH foo bar 1\nMATCH hi bye 2\nDONE hi hi")
-;; returns '((tag file row) ...)
 (defun mural-parse-response (tagfile results)
+  "RESULTS is a tab-delimited string of the format
+    MATCH tag file row
+    ...
+    DONE ...
+
+mural-parse-response parses this into '((tag file-path row tagfile-path) ...).
+Filenames are resolved relative to TAGFILE"
   (delq nil
         (mapcar
          (lambda (x)
-           ;; spaces in the filename?  tough.
            (let ((row (split-string x "\t")))
              (if (equal (elt row 0) "MATCH")
                  ;; MATCH tag filename row
@@ -148,6 +168,7 @@
          (split-string results "\n"))))
 
 (defun mural-response-complete (result)
+  "Returns t if RESULT is a complete response from the server"
   (integerp (string-match "^DONE" result)))
 
 (defun mural-read-tag (file-base)
@@ -177,6 +198,8 @@ accessed through the mural-tag-* functions"
   (elt tag 2))
 
 (defun mural-open-dwim ()
+  "Interactively search for a tag in the current repository and
+open it in a new buffer"
   (interactive)
   (let ((taginfo (mural-read-tag (buffer-file-name))))
     (find-file (mural-tag-filename taginfo))
