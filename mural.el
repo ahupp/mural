@@ -47,11 +47,6 @@
 (defvar ido-dynamic-match-fn nil)
 (defvar mural-tagfile-to-process '())
 
-;; Only used in the context of a single query
-(defvar mural-server-output "")
-(defvar mural-last-query-result nil)
-(defvar mural-current-tagfile nil)
-
 (defun mural-add-tagfile (tagfile)
   (mural-get-server (expand-file-name tagfile)))
 
@@ -115,8 +110,8 @@
 (defun mural-query (query tagfile)
   (if (equal "" query)
       '()
-    (let ((proc (mural-get-server tagfile)))
-      (setq mural-server-output "")
+    (let ((proc (mural-get-server tagfile))
+          (mural-server-output ""))
       (process-send-string (process-name proc)
                            (concat query "\n"))
 
@@ -125,11 +120,9 @@
             until (mural-response-complete mural-server-output)
             do (accept-process-output proc .05))
       (if (mural-response-complete mural-server-output)
-          (mural-parse-response mural-server-output)
-        (progn
-          (message "mural-server timeout")
-          '())
-        ))))
+          (mural-parse-response tagfile mural-server-output)
+        (error "mural-server timeout"))
+      )))
 
 (defun mural-query-save-tag (query)
   (let ((qresult (mural-query query mural-current-tagfile)))
@@ -138,7 +131,7 @@
 
 ;;(mural-parse-response "MATCH foo bar 1\nMATCH hi bye 2\nDONE hi hi")
 ;; returns '((tag file row) ...)
-(defun mural-parse-response (results)
+(defun mural-parse-response (tagfile results)
   (delq nil
         (mapcar
          (lambda (x)
@@ -146,7 +139,10 @@
            (let ((row (split-string x "\t")))
              (if (equal (elt row 0) "MATCH")
                  ;; MATCH tag filename row
-                 (list (elt row 1) (elt row 2) (string-to-number (elt row 3)))
+                 (list (elt row 1)
+                       (elt row 2)
+                       (string-to-number (elt row 3))
+                       tagfile)
                ;; hopefully DONE
                nil)))
          (split-string results "\n"))))
@@ -154,38 +150,37 @@
 (defun mural-response-complete (result)
   (integerp (string-match "^DONE" result)))
 
-(defun mural-read-tag ()
-  (let ((file-base (buffer-file-name)))
-    (if (not file-base)
-        (error "no file associated with buffer"))
-    (setq mural-current-tagfile (mural-tagfile-for-filename file-base))
+(defun mural-read-tag (file-base)
+  "Run the typeahead in the minibuffer against a tagset
+appropriate for FILE-BASE.  Return a taginfo list which can be
+accessed through the mural-tag-* functions"
+  (if (not file-base)
+      (error "no file associated with buffer"))
+  (let ((mural-current-tagfile (mural-tagfile-for-filename file-base)))
     (if (not mural-current-tagfile)
         (error "no tagfile associated with %s" file-base))
-    (setq ido-dynamic-match-fn 'mural-query-save-tag)
-    (unwind-protect ;; i have no idea what's going on here
-        (ido-completing-read "tag: " '("nope"))
-      (setq ido-dynamic-match-fn nil))))
+    (let ((ido-dynamic-match-fn 'mural-query-save-tag)
+          (mural-last-query-result nil)) ;; set by mural-query-save-tag
+      (assoc
+       (ido-completing-read "tag: " '("nope"))
+       mural-last-query-result))))
 
+;; Tags are lists like '(tag filename row tagfile)
 (defun mural-tag-tagname (tag)
   (elt tag 0))
 (defun mural-tag-filename (tag)
-  (elt tag 1))
+  (file-truename
+   (concat
+    (file-name-directory (elt tag 3))
+    (elt tag 1))))
 (defun mural-tag-row (tag)
   (elt tag 2))
 
-
 (defun mural-open-dwim ()
   (interactive)
-  (let* ((tag (mural-read-tag))
-        (taginfo (assoc tag mural-last-query-result)))
-    (progn
-      (find-file (mural-abspath-for-tag (file-name-directory mural-current-tagfile) taginfo))
-      (goto-line (mural-tag-row taginfo))
-      (setq mural-last-query-result nil)
-      )))
-
-(defun mural-abspath-for-tag (root taginfo)
-  (file-truename (expand-file-name (mural-tag-filename taginfo) root)))
+  (let ((taginfo (mural-read-tag (buffer-file-name))))
+    (find-file (mural-tag-filename taginfo))
+    (goto-line (mural-tag-row taginfo))))
 
 (defvar ido-dynamic-last-query nil)
 
