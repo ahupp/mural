@@ -34,9 +34,11 @@
 ;;   (global-set-key (kbd "C-o") 'mural-open-dwim)
 ;;
 ;; To debug launch:
-;; (call-process mural-server-path nil t nil tags-file-name)
+;; (call-process "mural_server" nil t nil (expand-file-name "~/www/TAGS"))
+
 
 (require 'ido)
+(require 'cl)
 
 (defvar mural-server-path "mural_server"
   "Path to the mural_server executable")
@@ -57,7 +59,7 @@
   (setq mural-tagfile-to-process
         (cons
          (cons tagfile process)
-         (mural-filter (lambda (entry)
+         (delete-if-not (lambda (entry)
                    (not (equal tagfile (car entry))))
                  mural-tagfile-to-process))))
 
@@ -92,23 +94,13 @@
            (setq mural-server-output (concat mural-server-output output))))))
      proc))
 
-;; I can't believe I have to write this function
-(defun mural-filter (pred lst)
-  (if (eq 0 (length lst))
-      '()
-    (let ((fst (car lst))
-          (rst (mural-filter pred (cdr lst))))
-      (if (funcall pred fst)
-        (cons fst rst)
-        rst))))
-
 (defun mural-tagfile-for-filename (filename)
   "Given a source file, return the name of the associated
 tagfile.  This matches based on sharing the same parent
 directory, so /home/bob/project/foo.c will match the tag file in
 /home/bobo/project/TAGS.  If no match is found, return nil"
   (let ((resolved-fname (file-truename filename)))
-    (car (mural-filter
+    (car (delete-if-not
           (lambda (tagfile)
             ;; file-truename resolves symlinks so we make sure to
             ;; compare the same thing
