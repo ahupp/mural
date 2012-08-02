@@ -80,11 +80,7 @@ vector<string> split(const string& line, char delim) {
   return result;
 }
 
-void read_ctags_file(const string& tagfile, vector<TagInfo>& tags) {
-
-  tags.clear();
-
-  ifstream tag_stream(tagfile.c_str());
+void read_ctags_file(ifstream& tag_stream, vector<TagInfo>& tags) {
 
   set<string> seen_files;
 
@@ -116,11 +112,7 @@ void read_ctags_file(const string& tagfile, vector<TagInfo>& tags) {
   }
 }
 
-void read_etags_file(const string& tagfile, vector<TagInfo>& tags) {
-
-  tags.clear();
-
-  ifstream tag_stream(tagfile.c_str());
+void read_etags_file(ifstream& tag_stream, vector<TagInfo>& tags) {
 
   bool expecting_filename = false;
   string current_filename;
@@ -250,7 +242,19 @@ void read_tags_file(const string& tags_file, vector<TagInfo>& tags) {
     exit(1);
   }
 
-  read_etags_file(tags_file, tags);
+  tags.clear();
+
+  ifstream tags_stream(tags_file.c_str());
+
+  string line;
+  getline(tags_stream, line);
+  tags_stream.seekg(0);
+
+  if (line.length() && line[0] == '!') {
+    read_ctags_file(tags_stream, tags);
+  } else {
+    read_etags_file(tags_stream, tags);
+  }
 }
 
 void read_inotify_events(const int inotify_fd,
