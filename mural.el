@@ -50,6 +50,8 @@
 (defvar mural-tagfile-to-process '()
   "alist from tagfile name to a mural_server process that handles this tagfile")
 
+(defvar mural-current-tagfile nil)
+
 (defun mural-add-tagfile (tagfile)
   "Register tagfile and make it available for queries"
   (mural-get-server (expand-file-name tagfile)))
@@ -128,12 +130,12 @@ specified in mural-parse-response"
         (error "mural-server timeout"))
       )))
 
-(defun mural-query-save-tag (query)
+(defun mural-query-save-tag (query tagfile)
   "Run by ido-mode to refresh results on keypress.  Runs
 QUERY (the current contents of the minibuffer) against
 mural-current-tagfile, which was setup on entry to
 ido-completing-read"
-  (let ((qresult (mural-query query mural-current-tagfile)))
+  (let ((qresult (mural-query query tagfile)))
     (setq mural-last-query-result qresult)
     (mapcar 'mural-tag-tagname qresult)))
 
@@ -163,20 +165,31 @@ Filenames are resolved relative to TAGFILE"
   "Returns t if RESULT is a complete response from the server"
   (integerp (string-match "^DONE" result)))
 
-(defun mural-read-tag (file-base)
+(defun mural-infer-tagfile ()
+  (let* ((file-base (buffer-file-name))
+         (tagfile-for-buffer (and file-base
+                                  (mural-tagfile-for-filename file-base))))
+    ;; try 1. current repo, 2. last repo used, 3. whatever is configured
+    (let ((tagfile (or
+                    tagfile-for-buffer
+                    mural-current-tagfile
+                    (if (eq 1 (length mural-tagfile-to-process))
+                        (car (car mural-tagfile-to-process))))))
+      (if (not tagfile)
+          (error "unable to infer tagfile")
+        (setq mural-current-tagfile tagfile)))))
+
+
+(defun mural-read-tag (tagfile)
   "Run the typeahead in the minibuffer against a tagset
 appropriate for FILE-BASE.  Return a taginfo list which can be
 accessed through the mural-tag-* functions"
-  (if (not file-base)
-      (error "no file associated with buffer"))
-  (let ((mural-current-tagfile (mural-tagfile-for-filename file-base)))
-    (if (not mural-current-tagfile)
-        (error "no tagfile associated with %s" file-base))
-    (let ((ido-dynamic-match-fn 'mural-query-save-tag)
-          (mural-last-query-result nil)) ;; set by mural-query-save-tag
-      (assoc
-       (ido-completing-read "tag: " '("nope"))
-       mural-last-query-result))))
+  (let ((ido-dynamic-match-fn (lambda (query)
+                                (mural-query-save-tag query tagfile)))
+        (mural-last-query-result nil)) ;; set by mural-query-save-tag
+    (assoc
+     (ido-completing-read "tag: " '("nope"))
+     mural-last-query-result)))
 
 ;; Tags are lists like '(tag filename row tagfile)
 (defun mural-tag-tagname (tag)
@@ -193,7 +206,7 @@ accessed through the mural-tag-* functions"
   "Interactively search for a tag in the current repository and
 open it in a new buffer"
   (interactive)
-  (let ((taginfo (mural-read-tag (buffer-file-name))))
+  (let ((taginfo (mural-read-tag (mural-infer-tagfile))))
     (find-file (mural-tag-filename taginfo))
     (goto-line (mural-tag-row taginfo))))
 
