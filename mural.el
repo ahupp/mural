@@ -57,7 +57,7 @@
   (setq mural-tagfile-to-process
         (cons
          (cons tagfile process)
-         (filter (lambda (entry)
+         (mural-filter (lambda (entry)
                    (not (equal tagfile (car entry))))
                  mural-tagfile-to-process))))
 
@@ -93,11 +93,11 @@
      proc))
 
 ;; I can't believe I have to write this function
-(defun filter (pred lst)
+(defun mural-filter (pred lst)
   (if (eq 0 (length lst))
       '()
     (let ((fst (car lst))
-          (rst (filter pred (cdr lst))))
+          (rst (mural-filter pred (cdr lst))))
       (if (funcall pred fst)
         (cons fst rst)
         rst))))
@@ -108,7 +108,7 @@ tagfile.  This matches based on sharing the same parent
 directory, so /home/bob/project/foo.c will match the tag file in
 /home/bobo/project/TAGS.  If no match is found, return nil"
   (let ((resolved-fname (file-truename filename)))
-    (car (filter
+    (car (mural-filter
           (lambda (tagfile)
             ;; file-truename resolves symlinks so we make sure to
             ;; compare the same thing
