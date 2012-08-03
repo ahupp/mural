@@ -20,17 +20,26 @@ bool is_method_tag(const string& tag) {
   return tag.find("::") != string::npos;
 }
 
+string lowercase(const string& s) {
+  string ret = s;
+  for (size_t i = 0; i < ret.length(); ++i) {
+    ret[i] = tolower(ret[i]);
+  }
+  return ret;
+}
+
 struct TagInfo {
   string symbol;
+  string symbol_lc;
   string file;
   int row;
   bool is_method;
 
   TagInfo(const string& _symbol, const string& _file, int _row)
-   : symbol(_symbol), file(_file), row(_row), is_method(is_method_tag(_symbol))
+      : symbol(_symbol), symbol_lc(lowercase(_symbol)),
+        file(_file), row(_row), is_method(is_method_tag(_symbol))
     {}
 };
-
 
 bool is_fuzzy_match(const string& symbol, const string& query,
                     int* inter_count_ret) {
@@ -176,6 +185,8 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
   // never include methods, and vice-versa.
   bool methods_only = is_method_tag(query);
 
+  bool ignore_case = query == lowercase(query);
+
   for (size_t i = 0; i < tags.size(); ++i) {
     int inter_count;
     const TagInfo& tag = tags[i];
@@ -185,7 +196,9 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
       // search one, but right now it's fast enough.
       continue;
     }
-    if (is_fuzzy_match(tag.symbol, query, &inter_count)) {
+
+    if (is_fuzzy_match(ignore_case ? tag.symbol_lc : tag.symbol,
+                       query, &inter_count)) {
       // Passing &tag here is an important perf optimization to avoid
       // excessive copying when there are many possible results (like
       // "A")
