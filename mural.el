@@ -83,6 +83,7 @@
   (let ((proc (start-process
                "mural" "*muralserver*"
                mural-server-path tagfile)))
+    (set-process-query-on-exit-flag proc nil)
     (set-process-filter
      proc
      (lambda (process output)
