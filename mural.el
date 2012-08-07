@@ -58,12 +58,13 @@
 
 (defun mural-add-tag-process-entry (tagfile process)
   "Add or replace the process associated with tagfile"
-  (setq mural-tagfile-to-process
-        (cons
-         (cons tagfile process)
-         (delete-if-not (lambda (entry)
-                   (not (equal tagfile (car entry))))
-                 mural-tagfile-to-process))))
+  (let ((entry (assoc tagfile mural-tagfile-to-process)))
+    (if entry
+        (setcdr entry process)
+      (setq mural-tagfile-to-process
+            (append
+             mural-tagfile-to-process
+             (list (cons tagfile process)))))))
 
 (defun mural-get-server (tagfile)
   "Return the process for the given tagfile, if necessary creating/restarting it"
@@ -174,8 +175,7 @@ Filenames are resolved relative to TAGFILE"
     (let ((tagfile (or
                     tagfile-for-buffer
                     mural-current-tagfile
-                    (if (eq 1 (length mural-tagfile-to-process))
-                        (car (car mural-tagfile-to-process))))))
+                    (car (car mural-tagfile-to-process)))))
       (if (not tagfile)
           (error "unable to infer tagfile")
         (setq mural-current-tagfile tagfile)))))
