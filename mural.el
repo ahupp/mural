@@ -1,32 +1,5 @@
 ;;
-;; mural adds a fast, fuzzy tag search typeahead to emacs.
-;;
-;; Features:
-;;
-;;   -- fuzzy search means that you can type any sequence of letters
-;;      in a tag.  e.g, 'prof_get_s' will find 'profile_get_short'.
-;;      This lets you find tags who's name you only vagely remember,
-;;      is robust to some typos, and only requires typing a fraction
-;;      of the characters in most case (e.g
-;;      SimpleBeanFactoryAwareAspectInstanceFactory could by found by
-;;      just typing SBFAAIF, or some subset thereof)
-;;
-;;   -- results are refined on each keypress, which lets you stop as
-;;      soon as an unambiguous result is found.
-;;
-;;   -- it's dramatically faster than pure emacs solutions for large
-;;      tags files.  Single queries return in 35ms, compared to
-;;      several seconds to do a tab completion in find-tag and over
-;;      10s for a fuzzy match in ido-mode.
-;;
-;;   -- supports multiple tag files and repositories.  The repo to
-;;      search is chosen based on the location of the file in the
-;;      current buffer.
-;;
-;;   -- changes to the tags file are picked up without a restart using inotify.
-;;
-;;
-;; To use, put this in your .emacs:
+;; To enable, put this in your .emacs:
 ;;
 ;;   (require 'mural)
 ;;   (mural-add-tagfile "~/www/TAGS")
@@ -35,7 +8,6 @@
 ;;
 ;; To debug launch:
 ;; (call-process "mural_server" nil t nil (expand-file-name "~/www/TAGS"))
-
 
 (require 'ido)
 (require 'cl)
