@@ -37,10 +37,10 @@ Requires g++ to build.
 2. Put mural.el in your emacs load-path
 3. Add the following to your .emacs file:
 
-    (require 'mural)
-    (mural-add-tagfile "~/www/TAGS")
-    (mural-add-tagfile "~/another/repository/TAGS")
-    (global-set-key (kbd "C-o") 'mural-open-dwim)
+     (require 'mural)
+     (mural-add-tagfile "~/www/TAGS")
+     (mural-add-tagfile "~/another/repository/TAGS")
+     (global-set-key (kbd "C-o") 'mural-open-dwim)
 
 ## Usage
 
@@ -55,7 +55,7 @@ become case-sensitive if the query contains any upper-case characters.
 Hitting enter on a result will take you to the desired file/line
 number.
 
-== Author, License, and Contributions
+## Author, License, and Contributions
 
 mural was written by Adam Hupp <adam@hupp.org> / <ahupp@fb.com> to
 help navigate the Facebook codebase.  It is released under the BSD
@@ -66,14 +66,14 @@ The canonical source for mural can be found at
 http://github.com/ahupp/mural.  If you'd like to submit a fix or
 feature just send a pull request to that repo.
 
-== Why "mural"?
+## Why "mural"?
 
 I live in the Mission District of San Franisco which is full of both
 ugly graffiti (aka "tags") and beautiful murals.  While both are just
 paint on a wall, the former makes my life a little more frustrating
 while the latter makes it happier.
 
-== Implementation Notes
+## Implementation Notes
 
 On startup `mural-add-tagfile` spawns a new `mural_server` process
 that loads the selected tagfile.  Each key press in the typeahead
