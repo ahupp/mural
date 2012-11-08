@@ -37,10 +37,10 @@ Requires g++ to build.
 2. Put mural.el in your emacs load-path
 3. Add the following to your .emacs file:
 
-     (require 'mural)
-     (mural-add-tagfile "~/www/TAGS")
-     (mural-add-tagfile "~/another/repository/TAGS")
-     (global-set-key (kbd "C-o") 'mural-open-dwim)
+       (require 'mural)
+       (mural-add-tagfile "~/www/TAGS")
+       (mural-add-tagfile "~/another/repository/TAGS")
+       (global-set-key (kbd "C-o") 'mural-open-dwim)
 
 ## Usage
 
@@ -80,9 +80,9 @@ that loads the selected tagfile.  Each key press in the typeahead
 sends a query string over stdin to this process.  The process returns
 zero or more tab-delimited lines of the form
 
-   MATCH <tag> <file> <line>
+   MATCH tag file line
 
-Followed by the string "DONE <metadata>".  If inotify detects that the
+Followed by the string "DONE metadata".  If inotify detects that the
 tag file has changed the process will reload it.
 
 `mural_server` does not use any fancy indexing, this is a brute force
