@@ -37,10 +37,12 @@ Requires g++ to build.
 2. Put mural.el in your emacs load-path
 3. Add the following to your .emacs file:
 
-       (require 'mural)
-       (mural-add-tagfile "~/www/TAGS")
-       (mural-add-tagfile "~/another/repository/TAGS")
-       (global-set-key (kbd "C-o") 'mural-open-dwim)
+```elisp
+(require 'mural)
+(mural-add-tagfile "~/www/TAGS")
+(mural-add-tagfile "~/another/repository/TAGS")
+(global-set-key (kbd "C-o") 'mural-open-dwim)
+```
 
 ## Usage
 
