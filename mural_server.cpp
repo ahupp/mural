@@ -1,222 +1,42 @@
 
+using namespace std;
+
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <vector>
-#include <map>
-#include <set>
-#include <algorithm>
 #include <sstream>
 #include <sys/epoll.h>
 #include <sys/inotify.h>
 #include <assert.h>
+#include <time.h>
 
-#include "timer.h"
-#include "enforce.h"
+#include "tags.h"
+#include "search.h"
 
-using namespace std;
-
-bool is_method_tag(const string& tag) {
-  return tag.find("::") != string::npos;
-}
-
-string lowercase(const string& s) {
-  string ret = s;
-  for (size_t i = 0; i < ret.length(); ++i) {
-    ret[i] = tolower(ret[i]);
+int enforce(int a, const char* blame) {
+  if (a == -1) {
+    perror(blame);
+    exit(1);
   }
-  return ret;
+  return a;
 }
 
-struct TagInfo {
-  string symbol;
-  string symbol_lc;
-  string file;
-  int row;
-  bool is_method;
+class Timer {
+  struct timespec start;
+public:
+  Timer() {
+    clock_gettime(CLOCK_MONOTONIC, &start);
+  }
 
-  TagInfo(const string& _symbol, const string& _file, int _row)
-      : symbol(_symbol), symbol_lc(lowercase(_symbol)),
-        file(_file), row(_row), is_method(is_method_tag(_symbol))
-    {}
+  long elapsedMS() {
+    struct timespec end;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    return 1000*(end.tv_sec - start.tv_sec) +
+      (long)((end.tv_nsec - start.tv_nsec)/(1000*1000));
+  }
 };
 
-bool is_fuzzy_match(const string& symbol, const string& query,
-                    int* inter_count_ret) {
-
-  size_t qi = 0;
-  size_t si = 0;
-  int lastmatch = -1;
-
-  // The number of characters between fuzzy matches.  This is 0 if
-  // query is a substring of symbol.  Larger values of inter_count
-  // will generally be worse matches than smaller values.
-  int inter_count = 0;
-
-  while (qi < query.length() && si < symbol.length()) {
-    if (query[qi] == symbol[si]) {
-      if (lastmatch != -1) {
-        inter_count += si - lastmatch - 1;
-      }
-      lastmatch = si;
-      ++qi;
-    }
-    ++si;
-  }
-  *inter_count_ret = inter_count;
-  return qi == query.length();
-}
-
-
-vector<string> split(const string& line, char delim) {
-
-  vector<string> result;
-
-  size_t i = 0;
-  while (1) {
-
-    size_t next = line.find(delim, i);
-    if (next == string::npos) {
-      break;
-    }
-
-    result.push_back(line.substr(i, next - i));
-
-    i = next + 1;
-  }
-  result.push_back(line.substr(i, line.length() - i));
-
-  return result;
-}
-
-void read_ctags_file(ifstream& tag_stream, vector<TagInfo>& tags) {
-
-  set<string> seen_files;
-
-  while (!tag_stream.eof()) {
-    string line;
-    getline(tag_stream, line);
-
-    if (line[0] == '!') {
-      continue;
-    }
-
-    vector<string> splat = split(line, '\t');
-    if (splat.size() != 4) {
-      continue;
-    }
-
-    string row = splat[2];
-    if (row.length() > 2 && row.substr(row.length()-2, row.length()) == ";\"") {
-      row = row.substr(0, row.length() - 2);
-    }
-
-    string filename = splat[1];
-    if (seen_files.find(filename) == seen_files.end()) {
-      seen_files.insert(filename);
-      tags.push_back(TagInfo(filename, filename, 0));
-    }
-
-    tags.push_back(TagInfo(splat[0], filename, atoi(row.c_str())));
-  }
-}
-
-void read_etags_file(ifstream& tag_stream, vector<TagInfo>& tags) {
-
-  bool expecting_filename = false;
-  string current_filename;
-  while (!tag_stream.eof()) {
-    string line;
-    getline(tag_stream, line);
-
-    if (expecting_filename) {
-      expecting_filename = false;
-
-      size_t comma = line.find(',');
-      if (comma != string::npos) {
-        current_filename = line.substr(0, comma);
-        tags.push_back(TagInfo(current_filename, current_filename, 0));
-      }
-    } else if (line[0] == 0x0C) {
-      expecting_filename = true;
-      continue;
-    } else {
-
-      size_t tag_start = line.find(0x7F);
-      if (tag_start == string::npos) {
-        continue;
-      }
-      size_t tag_end = line.find(0x01, tag_start);
-      if (tag_end == string::npos) {
-        continue;
-      }
-      size_t row_end = line.find(',', tag_end);
-      if (row_end == string::npos) {
-        continue;
-      }
-
-      string symbol = line.substr(tag_start + 1, tag_end-tag_start-1);
-      string row = line.substr(tag_end+1, row_end);
-
-      tags.push_back(TagInfo(symbol, current_filename, atoi(row.c_str())));
-    }
-  }
-}
-
-typedef pair<const TagInfo*, int> FuzzyMatch;
-
-bool is_better_match(const FuzzyMatch& lhs, const FuzzyMatch& rhs) {
-  if (lhs.second < rhs.second) {
-    return true;
-  } else if (lhs.second == rhs.second) {
-    if (lhs.first->symbol.length() < rhs.first->symbol.length()) {
-      return true;
-    }
-  }
-  return false;
-}
-
-vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
-                                   const string& query,
-                                   const size_t max_items) {
-  vector<FuzzyMatch> matches;
-
-  // Searches that don't explicitly look like a method ("::") will
-  // never include methods, and vice-versa.
-  bool methods_only = is_method_tag(query);
-
-  bool ignore_case = query == lowercase(query);
-
-  for (size_t i = 0; i < tags.size(); ++i) {
-    int inter_count;
-    const TagInfo& tag = tags[i];
-
-    if (tag.is_method != methods_only) {
-      // could split the tags into method and non-method sets and only
-      // search one, but right now it's fast enough.
-      continue;
-    }
-
-    if (is_fuzzy_match(ignore_case ? tag.symbol_lc : tag.symbol,
-                       query, &inter_count)) {
-      // Passing &tag here is an important perf optimization to avoid
-      // excessive copying when there are many possible results (like
-      // "A")
-      matches.push_back(make_pair(&tag, inter_count));
-    }
-  }
-
-  size_t limit = min(max_items, matches.size());
-  partial_sort(matches.begin(), matches.begin()+limit, matches.end(),
-               is_better_match);
-
-  vector<TagInfo> result;
-  for (size_t i = 0; i < limit; ++i) {
-    result.push_back(*(matches[i].first));
-  }
-
-  return result;
-}
 
 void handle_one_query(const vector<TagInfo>& tags) {
 
@@ -248,27 +68,6 @@ void mural_epoll_add(const int epoll_fd, const int fd) {
   enforce(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &evt), "mural_add_epoll");
 }
 
-void read_tags_file(const string& tags_file, vector<TagInfo>& tags) {
-
-  if (0 != access(tags_file.c_str(), R_OK)) {
-    cerr << "error: " << tags_file << " not readable" << endl;
-    exit(1);
-  }
-
-  tags.clear();
-
-  ifstream tags_stream(tags_file.c_str());
-
-  string line;
-  getline(tags_stream, line);
-  tags_stream.seekg(0);
-
-  if (line.length() && line[0] == '!') {
-    read_ctags_file(tags_stream, tags);
-  } else {
-    read_etags_file(tags_stream, tags);
-  }
-}
 
 void read_inotify_events(const int inotify_fd,
                          const string& tag_file,
@@ -304,7 +103,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const string tags_file(argv[1]);
+  string tags_file(argv[1]);
 
   vector<TagInfo> tags;
   read_tags_file(tags_file, tags);
