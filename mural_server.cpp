@@ -48,7 +48,7 @@ void handle_one_query(const vector<TagInfo>& tags) {
   }
 
   Timer t;
-  vector<TagInfo> matches = find_fuzzy_matches(tags, query, 32);
+  vector<TagInfo> matches = find_best_fuzzy_matches(tags, query, 32);
 
   for (size_t i = 0; i < matches.size(); ++i) {
     const TagInfo& match = matches[i];

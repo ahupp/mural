@@ -45,16 +45,14 @@ bool is_better_match(const FuzzyMatch& lhs, const FuzzyMatch& rhs) {
   return false;
 }
 
-vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
-                                   const string& query,
-                                   const size_t max_items) {
-  vector<FuzzyMatch> matches;
-
+vector<FuzzyMatch> find_all_fuzzy_matches(const vector<TagInfo>& tags,
+                                          const string& query,
+                                          const bool ignore_case) {
   // Searches that don't explicitly look like a method ("::") will
   // never include methods, and vice-versa.
   bool methods_only = is_method_tag(query);
 
-  bool ignore_case = query == lowercase(query);
+  vector<FuzzyMatch> matches;
 
   for (size_t i = 0; i < tags.size(); ++i) {
     int inter_count;
@@ -74,7 +72,19 @@ vector<TagInfo> find_fuzzy_matches(const vector<TagInfo>& tags,
       matches.push_back(make_pair(&tag, inter_count));
     }
   }
+  return matches;
+}
 
+vector<TagInfo> find_best_fuzzy_matches(const vector<TagInfo>& tags,
+                                        const string& query,
+                                        const size_t max_items) {
+
+  bool ignore_case = query == lowercase(query);
+
+  vector<FuzzyMatch> matches = find_all_fuzzy_matches(tags, query, ignore_case);
+  if (matches.size() == 0 && !ignore_case) {
+    matches = find_all_fuzzy_matches(tags, lowercase(query), true);
+  }
   size_t limit = min(max_items, matches.size());
   partial_sort(matches.begin(), matches.begin()+limit, matches.end(),
                is_better_match);
