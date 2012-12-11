@@ -104,14 +104,50 @@ specified in mural-parse-response"
         (error "mural-server timeout"))
       )))
 
+(defun hash-incr (key table)
+  "Increment `key` in hashtable `table`"
+  (puthash key (+ 1 (gethash key table 0)) table))
+
+(defun mural-first-single (names count-table)
+  "Return the first item in the list `names` that has a value of 1 in count-table"
+  (let ((name (car names)))
+    (if (or (eq (cdr names) nil)
+            (equal 1 (gethash name count-table)))
+        name
+      (mural-first-single (cdr names) count-table))))
+
+(defun mural-tag-possible-displaynames (tag)
+  "Return a list of candidate display names for the tag, in order
+  of preference.  Used to qualify tags with overlapping files"
+  (list (mural-tag-tagname tag)
+        (format "%s [%s:%d]"
+                (mural-tag-tagname tag)
+                (file-name-nondirectory (mural-tag-filename tag))
+                (mural-tag-row tag))
+        (format "%s [%s]"
+                (mural-tag-tagname tag)
+                (mural-tag-filename tag))))
+
+
 (defun mural-query-save-tag (query tagfile)
   "Run by ido-mode to refresh results on keypress.  Runs
 QUERY (the current contents of the minibuffer) against
 mural-current-tagfile, which was setup on entry to
 ido-completing-read"
-  (let ((qresult (mural-query query tagfile)))
-    (setq mural-last-query-result qresult)
-    (mapcar 'mural-tag-tagname qresult)))
+  (let ((qresult (mural-query query tagfile))
+        (count-table (make-hash-table :test 'equal)))
+    (mapcar (lambda (x) (hash-incr x count-table))
+            ;; aka flatten
+            (mapcan 'identity (mapcar 'mural-tag-possible-displaynames qresult)))
+    (setq mural-last-query-result
+          (mapcar
+           (lambda (tag)
+               ;; the name is the first element of a tag
+             (setcar tag (mural-first-single
+                          (mural-tag-possible-displaynames tag) count-table))
+             tag)
+           qresult))
+    (mapcar 'mural-tag-tagname mural-last-query-result)))
 
 (defun mural-parse-response (tagfile results)
   "RESULTS is a tab-delimited string of the format
@@ -168,10 +204,13 @@ accessed through the mural-tag-* functions"
 (defun mural-tag-tagname (tag)
   (elt tag 0))
 (defun mural-tag-filename (tag)
+  (elt tag 1))
+(defun mural-tag-absfilename (tag)
   (file-truename
    (concat
     (file-name-directory (elt tag 3))
-    (elt tag 1))))
+    (mural-tag-filename tag))))
+
 (defun mural-tag-row (tag)
   (elt tag 2))
 
@@ -180,7 +219,7 @@ accessed through the mural-tag-* functions"
 open it in a new buffer"
   (interactive)
   (let ((taginfo (mural-read-tag (mural-infer-tagfile))))
-    (find-file (mural-tag-filename taginfo))
+    (find-file (mural-tag-absfilename taginfo))
     (goto-line (mural-tag-row taginfo))))
 
 (defvar ido-dynamic-last-query nil)
