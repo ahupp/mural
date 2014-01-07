@@ -9,6 +9,10 @@
 ;; To debug launch:
 ;; (call-process "mural_server" nil t nil (expand-file-name "~/www/TAGS"))
 
+(eval-when-compile
+  (when (fboundp #'byte-compile-disable-warning)
+    (byte-compile-disable-warning 'cl-functions)))
+
 (require 'ido)
 (require 'cl)
 
@@ -23,6 +27,8 @@
   "alist from tagfile name to a mural_server process that handles this tagfile")
 
 (defvar mural-current-tagfile nil)
+(defvar mural-server-output nil)
+(defvar mural-last-query-result nil)
 
 (defun mural-add-tagfile (tagfile)
   "Register tagfile and make it available for queries"
@@ -136,7 +142,7 @@ mural-current-tagfile, which was setup on entry to
 ido-completing-read"
   (let ((qresult (mural-query query tagfile))
         (count-table (make-hash-table :test 'equal)))
-    (mapcar (lambda (x) (hash-incr x count-table))
+    (mapc (lambda (x) (hash-incr x count-table))
             ;; aka flatten
             (mapcan 'identity (mapcar 'mural-tag-possible-displaynames qresult)))
     (setq mural-last-query-result
@@ -220,7 +226,8 @@ open it in a new buffer"
   (interactive)
   (let ((taginfo (mural-read-tag (mural-infer-tagfile))))
     (find-file (mural-tag-absfilename taginfo))
-    (goto-line (mural-tag-row taginfo))))
+    (goto-char (point-min))
+    (forward-line (1- (mural-tag-row taginfo)))))
 
 (defvar ido-dynamic-last-query nil)
 
