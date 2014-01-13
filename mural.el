@@ -194,16 +194,19 @@ Filenames are resolved relative to TAGFILE"
           (error "unable to infer tagfile")
         (setq mural-current-tagfile tagfile)))))
 
-
 (defun mural-read-tag (tagfile)
   "Run the typeahead in the minibuffer against a tagset
 appropriate for FILE-BASE.  Return a taginfo list which can be
 accessed through the mural-tag-* functions"
-  (let ((ido-dynamic-match-fn (lambda (query)
+  (let ((init-query (funcall (or find-tag-default-function
+                                 (get major-mode 'find-tag-default-function)
+                                 'find-tag-default)))
+        (ido-dynamic-match-fn (lambda (query)
                                 (mural-query-save-tag query tagfile)))
-        (mural-last-query-result nil)) ;; set by mural-query-save-tag
+        (mural-last-query-result nil))
+    (mural-query-save-tag init-query tagfile)
     (assoc
-     (ido-completing-read "tag: " '("nope"))
+     (ido-completing-read "tag: " '() nil nil nil nil init-query)
      mural-last-query-result)))
 
 ;; Tags are lists like '(tag filename row tagfile)
@@ -243,4 +246,3 @@ open it in a new buffer"
 (ad-activate 'ido-set-matches)
 
 (provide 'mural)
-
