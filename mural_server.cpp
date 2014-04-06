@@ -11,6 +11,9 @@ using namespace std;
 #include <sys/inotify.h>
 #include <assert.h>
 #include <time.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "tags.h"
 #include "search.h"

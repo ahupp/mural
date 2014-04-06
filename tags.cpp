@@ -3,6 +3,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <cstdlib>
+#include <stdlib.h> 
 
 #include "tags.h"
 
