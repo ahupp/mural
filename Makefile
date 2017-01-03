@@ -1,5 +1,5 @@
 
 mural_server: *.cpp *.h
-	/usr/bin/g++ -Wall -O3 *.cpp -o mural_server
+	/usr/bin/g++ -Wall -lrt -O3 *.cpp -o mural_server
 
 
