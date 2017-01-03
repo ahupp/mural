@@ -1,14 +1,16 @@
 
-using namespace std;
-
 #include <iostream>
 #include <cstdlib>
 #include <stdio.h>
 #include <string>
 #include <vector>
 #include <sstream>
+
+#ifndef __APPLE__
 #include <sys/epoll.h>
 #include <sys/inotify.h>
+#endif
+
 #include <assert.h>
 #include <time.h>
 #include <unistd.h>
@@ -17,6 +19,8 @@ using namespace std;
 
 #include "tags.h"
 #include "search.h"
+
+using namespace std;
 
 int enforce(int a, const char* blame) {
   if (a == -1) {
@@ -66,13 +70,13 @@ void handle_one_query(const vector<TagInfo>& tags) {
        << "#match: " << matches.size() << endl;
 }
 
+#ifndef __APPLE__
 void mural_epoll_add(const int epoll_fd, const int fd) {
   struct epoll_event evt;
   evt.data.fd = fd;
   evt.events = EPOLLIN;
   enforce(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &evt), "mural_add_epoll");
 }
-
 
 void read_inotify_events(const int inotify_fd,
                          const string& tag_file,
@@ -100,6 +104,7 @@ void read_inotify_events(const int inotify_fd,
     i += EVENT_SIZE + event->len;
   }
 }
+#endif
 
 int main(int argc, char** argv) {
 
@@ -113,6 +118,7 @@ int main(int argc, char** argv) {
   vector<TagInfo> tags;
   read_tags_file(tags_file, tags);
 
+#ifndef __APPLE__
   int inotify_fd = enforce(inotify_init(), "inotify_init");
   int efd = enforce(epoll_create(2), "epoll_create");
 
@@ -142,7 +148,12 @@ int main(int argc, char** argv) {
       break;
     }
   }
+#else
+
+  while (!cin.eof()) {
+    handle_one_query(tags);
+  }
+
+#endif
   return 0;
 }
-
-
