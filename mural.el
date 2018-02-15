@@ -59,22 +59,31 @@
   (if (not tagfile)
       (error "tagfile not provided"))
   (message "Starting mural server")
-  (let ((proc (start-process
-               "mural" "*muralserver*"
-               mural-server-path tagfile)))
-    (set-process-query-on-exit-flag proc nil)
-    (set-process-filter
-     proc
-     (lambda (process output)
-       (with-current-buffer (process-buffer process)
-         (save-excursion
-           (if mural-server-echo
-               (progn
-                 (goto-char (process-mark process))
-                 (insert output)
-                 (set-marker (process-mark process) (point))))
-           (setq mural-server-output (concat mural-server-output output))))))
-     proc))
+    (let ((proc (if (tramp-tramp-file-p tagfile)
+                    (let ((default-directory (file-name-directory tagfile))
+                          (localname
+                           (tramp-file-name-localname (tramp-dissect-file-name tagfile))))
+                      (start-file-process
+                       "mural"
+                       ;; tramp bug doesn't work with plain string (or create buffer for you)
+                       ;; (fixed in 2.3, but old version is still shipping with Emacs)
+                       (generate-new-buffer "*muralserver*")
+                       mural-server-path localname))
+                  (progn
+                    (start-process
+                     "mural" "*muralserver*" mural-server-path tagfile)))))
+      (set-process-query-on-exit-flag proc nil)
+      (set-process-filter
+       proc
+       (lambda (process output)
+         (with-current-buffer (process-buffer process)
+           (save-excursion
+             (when mural-server-echo
+               (goto-char (process-mark process))
+               (insert output)
+               (set-marker (process-mark process) (point)))
+             (setq mural-server-output (concat mural-server-output output))))))
+      proc))
 
 (defun mural-tagfile-for-filename (filename)
   "Given a source file, return the name of the associated
