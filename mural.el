@@ -69,9 +69,8 @@
                        ;; (fixed in 2.3, but old version is still shipping with Emacs)
                        (generate-new-buffer "*muralserver*")
                        mural-server-path localname))
-                  (progn
                     (start-process
-                     "mural" "*muralserver*" mural-server-path tagfile)))))
+                     "mural" "*muralserver*" mural-server-path tagfile))))
       (set-process-query-on-exit-flag proc nil)
       (set-process-filter
        proc
